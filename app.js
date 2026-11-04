@@ -1,6 +1,12 @@
 /* GYM ONE Trenčín – aplikácia (PWA) */
+import { PRODUCTS, productById, buildPass, codeFrom, isoDate, parseISO, addDays } from "./shared/products.js";
+import { renderConfirmationEmail } from "./shared/email.js";
+
 (() => {
   "use strict";
+  const CFG = Object.assign({ appUrl: location.href.split(/[?#]/)[0], apiUrl: "", emailjs: {} }, window.GYMONE_CONFIG || {});
+  const API = (CFG.apiUrl || "").replace(/\/$/, "");
+  const LIVE = !!API;
 
   // ---------------------------------------------------------------- Dáta
   const GYM = {
@@ -14,25 +20,6 @@
       holiday: { open: 7 * 60, close: 22 * 60 },
     },
   };
-
-  const PRODUCTS = [
-    // Permanentky
-    { id: "m1", cat: "perm", title: "Permanentka 1 mesiac", price: 59, months: 1, desc: "Neobmedzený vstup počas 30 dní do všetkých zón." },
-    { id: "m1s", cat: "perm", title: "Študent – 1 mesiac", price: 50, months: 1, desc: "Pre študentov s platným ISIC. Neobmedzený vstup." },
-    { id: "m1x", cat: "perm", title: "Senior – 1 mesiac", price: 50, months: 1, desc: "Pre seniorov nad 65 rokov. Neobmedzený vstup." },
-    { id: "m3", cat: "perm", title: "3 mesiace", price: 165, months: 3, desc: "Neobmedzený vstup na 3 mesiace.", per: "55 € / mesiac", badge: "Obľúbené" },
-    { id: "m12", cat: "perm", title: "12 mesiacov", price: 600, months: 12, desc: "Celý rok tréningu bez obmedzení.", per: "50 € / mesiac", badge: "Najvýhodnejšie" },
-    // Vstupy
-    { id: "e10", cat: "entries", title: "10 vstupov", price: 65, entries: 10, days: 90, desc: "Platnosť 90 dní od začiatku.", per: "6,50 € / vstup" },
-    { id: "e20", cat: "entries", title: "20 vstupov", price: 120, entries: 20, days: 90, desc: "Platnosť 90 dní od začiatku.", per: "6 € / vstup", badge: "Výhodné" },
-    // Extras
-    { id: "s1", cat: "extras", title: "Jednorazový vstup", price: 7, entries: 1, days: 1, desc: "Jeden vstup na zvolený deň." },
-    { id: "s1s", cat: "extras", title: "Študentský vstup", price: 5, entries: 1, days: 1, desc: "Jeden vstup so študentským preukazom." },
-    { id: "s1x", cat: "extras", title: "Seniorský vstup", price: 4, entries: 1, days: 1, desc: "Jeden vstup pre seniorov nad 65 rokov." },
-    { id: "ms", cat: "extras", title: "MultiSport / UpBalansea", price: 5, months: 12, multisport: true, desc: "Vstup s kartou za 0 € po jednorazovom poplatku 5 €. Kartu ukáž na recepcii." },
-    // Skrytý – promo
-    { id: "free", cat: "hidden", title: "Prvý vstup zadarmo", price: 0, entries: 1, days: 30, desc: "Uvítací vstup pre nových členov (platí 30 dní)." },
-  ];
 
   const PHOTOS = [
     { f: "gym-281", c: "kardio", t: "Kardio zóna a sprint dráha" },
@@ -84,16 +71,6 @@
   const pad2 = (n) => String(n).padStart(2, "0");
   const fmtTime = (m) => `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`;
   const fmtDate = (iso) => { const [y, m, d] = iso.split("-"); return `${+d}. ${+m}. ${y}`; };
-  const isoDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-  const parseISO = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
-  const addDays = (iso, n) => { const d = parseISO(iso); d.setDate(d.getDate() + n); return isoDate(d); };
-  const addMonths = (iso, n) => {
-    const d = parseISO(iso); const day = d.getDate();
-    d.setDate(1); d.setMonth(d.getMonth() + n);
-    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    d.setDate(Math.min(day, last)); d.setDate(d.getDate() - 1);
-    return isoDate(d);
-  };
 
   const store = {
     get(k, def) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } },
@@ -231,7 +208,7 @@
   let selected = null;
 
   function openCheckout(id) {
-    const p = PRODUCTS.find((x) => x.id === id);
+    const p = productById(id);
     if (!p) return;
     if (p.id === "free" && getPasses().some((x) => x.productId === "free")) {
       toast("Uvítací vstup zadarmo si už využil/a 🙂"); show("pass"); return;
@@ -240,8 +217,11 @@
     $("#coTitle").textContent = p.title;
     $("#coSub").textContent = p.desc;
     $("#coPrice").textContent = eur(p.price);
-    $("#payFields").hidden = p.price === 0;
-    $("#coSubmit").textContent = p.price === 0 ? "Získať vstup" : `Zaplatiť ${eur(p.price)}`;
+    // V ostrom režime kartu zadáva zákazník priamo na zabezpečenej stránke Stripe
+    $("#payFields").hidden = p.price === 0 || LIVE;
+    $("#liveNote").hidden = !(LIVE && p.price > 0);
+    $("#demoNote").hidden = LIVE || p.price === 0;
+    $("#coSubmit").textContent = p.price === 0 ? "Získať vstup" : LIVE ? `Pokračovať na platbu ${eur(p.price)}` : `Zaplatiť ${eur(p.price)}`;
     const profile = store.get("g1_profile", {});
     form.name.value = profile.name || ""; form.email.value = profile.email || ""; form.phone.value = profile.phone || "";
     const today = nowInTrencin().iso;
@@ -253,7 +233,7 @@
   }
   function closeCheckout() { sheet.classList.remove("is-open"); sheet.setAttribute("aria-hidden", "true"); }
   sheet.addEventListener("click", (e) => { if (e.target.closest("[data-close]")) closeCheckout(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeCheckout(); closeLightbox(); } });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeCheckout(); closeLightbox(); closeMail(); } });
 
   form.addEventListener("change", () => { $("#cardFields").hidden = form.pm.value !== "card"; });
   form.card.addEventListener("input", () => { form.card.value = form.card.value.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim(); });
@@ -268,7 +248,7 @@
     mark(form.name, form.name.value.trim().length < 3, "Zadaj meno a priezvisko.");
     mark(form.email, !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.value.trim()), "Zadaj platný e-mail.");
     mark(form.start, !form.start.value || form.start.value < nowInTrencin().iso, "Vyber dátum (dnes alebo neskôr).");
-    if (selected.price > 0 && form.pm.value === "card") {
+    if (!LIVE && selected.price > 0 && form.pm.value === "card") {
       const num = form.card.value.replace(/\s/g, "");
       mark(form.card, num.length < 13 || !luhn(num), "Neplatné číslo karty.");
       const [mm, yy] = form.exp.value.split("/").map(Number);
@@ -281,36 +261,120 @@
     return errs.length === 0;
   }
 
+  async function api(path, opts = {}) {
+    const r = await fetch(API + path, { ...opts, headers: { "Content-Type": "application/json", ...(opts.headers || {}) } });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || "Spojenie so serverom zlyhalo.");
+    return data;
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!validate()) return;
     const btn = $("#coSubmit"); const label = btn.textContent;
-    btn.disabled = true; btn.innerHTML = `<span class="spinner"></span>${selected.price ? "Spracúvam platbu…" : "Pripravujem…"}`;
-    await new Promise((r) => setTimeout(r, 1400)); // simulácia platobnej brány
-    const profile = { name: form.name.value.trim(), email: form.email.value.trim(), phone: form.phone.value.trim() };
-    store.set("g1_profile", profile);
-    createPass(selected, form.start.value, profile, form.pm.value);
-    btn.disabled = false; btn.textContent = label;
-    form.reset(); closeCheckout();
-    toast(selected.price ? "Platba prebehla úspešne ✓" : "Vstup zadarmo je tvoj ✓");
-    show("pass");
+    const busy = (t) => { btn.disabled = true; btn.innerHTML = `<span class="spinner"></span>${t}`; };
+    const idle = () => { btn.disabled = false; btn.textContent = label; };
+    const customer = { name: form.name.value.trim(), email: form.email.value.trim(), phone: form.phone.value.trim(), start: form.start.value };
+    store.set("g1_profile", { name: customer.name, email: customer.email, phone: customer.phone });
+
+    try {
+      if (LIVE && selected.price > 0) {
+        // Ostrý režim → presmerovanie na zabezpečenú platobnú bránu Stripe
+        busy("Presmerúvam na platobnú bránu…");
+        const { url } = await api("/api/checkout", { method: "POST", body: JSON.stringify({ productId: selected.id, ...customer }) });
+        location.href = url;
+        return;
+      }
+      if (LIVE) {
+        busy("Pripravujem…");
+        const { pass } = await api("/api/free", { method: "POST", body: JSON.stringify(customer) });
+        finishPurchase(pass, { emailed: true });
+      } else {
+        // DEMO režim – simulácia platobnej brány
+        busy(selected.price ? "Spracúvam platbu…" : "Pripravujem…");
+        await new Promise((r) => setTimeout(r, 1400));
+        const pass = buildPass({
+          product: selected, start: customer.start, owner: customer.name, email: customer.email,
+          code: codeFrom(`${customer.email}:${Date.now()}:${Math.random()}`),
+          method: selected.price ? form.pm.value : "free",
+        });
+        const emailed = await sendEmailFromBrowser(pass);
+        finishPurchase(pass, { emailed, demo: true });
+      }
+    } catch (err) {
+      $("#coError").textContent = err.message;
+    } finally {
+      idle();
+    }
   });
+
+  function finishPurchase(pass, { emailed, demo } = {}) {
+    savePass(pass);
+    form.reset(); closeCheckout();
+    show("pass");
+    const where = pass.email ? ` na ${pass.email}` : "";
+    toast(emailed ? `Hotovo ✓ Potvrdenie sme poslali${where}` : pass.price ? "Platba prebehla úspešne ✓" : "Vstup zadarmo je tvoj ✓");
+    // V demo režime bez odoslania ukážeme, ako e-mail vyzerá
+    if (demo && !emailed) setTimeout(() => openMail(pass.id, true), 900);
+  }
+
+  // Návrat zo Stripe (?paid=cs_…)
+  async function handleStripeReturn() {
+    const qs = new URLSearchParams(location.search);
+    const clean = () => history.replaceState(null, "", location.pathname + location.hash);
+    if (qs.has("canceled")) { clean(); toast("Platba bola zrušená – nič sa nestrhlo"); return; }
+    const sid = qs.get("paid");
+    if (!sid || !LIVE) return;
+    clean();
+    show("pass");
+    toast("Overujem platbu…");
+    try {
+      const res = await api(`/api/verify?session_id=${encodeURIComponent(sid)}`);
+      if (!res.paid) { toast("Platba zatiaľ nebola potvrdená"); return; }
+      const isNew = !getPasses().some((x) => x.id === res.pass.id);
+      if (isNew) savePass(res.pass);
+      renderPasses();
+      toast(`Platba prijatá ✓ Potvrdenie sme poslali na ${res.pass.email}`);
+    } catch (err) { toast(err.message); }
+  }
+
+  // EmailJS priamo z prehliadača (voliteľné, len keď nie je server)
+  async function sendEmailFromBrowser(pass) {
+    const ej = CFG.emailjs || {};
+    if (!ej.publicKey || !ej.serviceId || !ej.templateId || !pass.email) return false;
+    const mail = renderConfirmationEmail({ pass, appUrl: CFG.appUrl, test: pass.price > 0 });
+    try {
+      const r = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_id: ej.serviceId, template_id: ej.templateId, user_id: ej.publicKey,
+          template_params: { to_email: pass.email, to_name: pass.owner, reply_to: "info@gymone.sk", subject: mail.subject, html: mail.html, text: mail.text },
+        }),
+      });
+      return r.ok;
+    } catch { return false; }
+  }
+
+  // ---------------------------------------------------------------- Náhľad e-mailu
+  const mailModal = $("#mailModal");
+  function openMail(passId, justBought) {
+    const pass = getPasses().find((x) => x.id === passId); if (!pass) return;
+    const mail = renderConfirmationEmail({ pass, appUrl: CFG.appUrl, test: !LIVE && pass.price > 0 });
+    $("#mailSubject").textContent = mail.subject;
+    $("#mailTo").textContent = pass.email || "—";
+    $("#mailNote").textContent = justBought
+      ? "Takto vyzerá potvrdzovací e-mail. V demo režime sa neodoslal – po zapojení servera príde zákazníkovi automaticky."
+      : "Kópia potvrdzovacieho e-mailu k tejto objednávke.";
+    $("#mailFrame").srcdoc = mail.html;
+    mailModal.classList.add("is-open"); mailModal.setAttribute("aria-hidden", "false");
+  }
+  function closeMail() { mailModal.classList.remove("is-open"); mailModal.setAttribute("aria-hidden", "true"); }
+  mailModal.addEventListener("click", (e) => { if (e.target.closest("[data-mail-close]")) closeMail(); });
 
   // ---------------------------------------------------------------- Karty / permanentky
   const getPasses = () => store.get("g1_passes", []);
   const savePasses = (p) => store.set("g1_passes", p);
-
-  function createPass(p, start, owner, pm) {
-    const end = p.months ? addMonths(start, p.months) : addDays(start, (p.days || 1) - 1);
-    const code = "G1-" + Math.random().toString(36).slice(2, 6).toUpperCase() + "-" + Date.now().toString(36).slice(-4).toUpperCase();
-    const pass = {
-      id: code, code, productId: p.id, title: p.title, price: p.price, pm,
-      type: p.entries ? "entries" : "time", multisport: !!p.multisport,
-      start, end, entriesTotal: p.entries || null, entriesLeft: p.entries || null,
-      owner: owner.name, purchasedAt: new Date().toISOString(), log: [],
-    };
-    const all = getPasses(); all.unshift(pass); savePasses(all);
-  }
+  const savePass = (pass) => { const all = getPasses().filter((x) => x.id !== pass.id); all.unshift(pass); savePasses(all); };
 
   function passStatus(p) {
     const today = nowInTrencin().iso;
@@ -354,10 +418,10 @@
           ${third}
         </div>
         <div class="progress"><span style="width:${st.ok ? pct : 0}%"></span></div>
-        ${st.ok ? `<div class="pass__actions">
-          <button class="btn btn--primary" data-checkin="${p.id}">Check-in (demo)</button>
-          <button class="btn btn--outline" data-bright>Jas QR</button>
-        </div>` : ""}
+        <div class="pass__actions">
+          ${st.ok && !LIVE ? `<button class="btn btn--primary" data-checkin="${p.id}">Check-in (demo)</button>` : ""}
+          <button class="btn btn--outline" data-mail="${p.id}">✉ Potvrdzovací e-mail</button>
+        </div>
       </article>`;
     }).join("") + historyHtml(passes) +
       `<p class="muted small center" style="margin-top:14px">Na recepcii naskenuj QR kód. Údaje sú uložené len v tomto zariadení.</p>`;
@@ -390,12 +454,8 @@
       toast(p.type === "entries" ? `Vstup zaznamenaný · zostáva ${p.entriesLeft}` : "Vitaj v GYM ONE! 💪");
       renderPasses();
     }
-    if (e.target.closest("[data-bright]")) {
-      const card = e.target.closest(".pass");
-      card.querySelector(".pass__qr").scrollIntoView({ behavior: "smooth", block: "center" });
-      card.querySelector(".qr").animate([{ transform: "scale(1)" }, { transform: "scale(1.06)" }, { transform: "scale(1)" }], { duration: 500 });
-      toast("Zvýš jas displeja pre lepšie skenovanie");
-    }
+    const m = e.target.closest("[data-mail]");
+    if (m) openMail(m.dataset.mail);
   });
 
   // ---------------------------------------------------------------- Galéria
@@ -467,6 +527,7 @@
   renderOpenState();
   setInterval(renderOpenState, 30000);
   show(location.hash.slice(1) || "home");
+  handleStripeReturn();
 
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
     window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));

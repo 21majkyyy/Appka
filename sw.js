@@ -1,7 +1,7 @@
 /* Service worker – offline režim pre GYM ONE appku */
-const CACHE = "gymone-v1";
+const CACHE = "gymone-v2";
 const SHELL = [
-  "./", "index.html", "styles.css", "app.js", "manifest.webmanifest",
+  "./", "index.html", "styles.css", "app.js", "config.js", "shared/products.js", "shared/email.js", "manifest.webmanifest",
   "img/logo-brown.svg", "img/logo-white.svg", "img/icon-192.png", "img/icon-512.png",
   "img/gym-281.webp", "img/thumb/gym-16.webp", "img/thumb/gym-6.webp",
 ];
@@ -14,7 +14,7 @@ self.addEventListener("activate", (e) => {
 });
 // stale-while-revalidate pre všetky GET požiadavky
 self.addEventListener("fetch", (e) => {
-  if (e.request.method !== "GET") return;
+  if (e.request.method !== "GET" || new URL(e.request.url).pathname.startsWith("/api/") || e.request.url.includes("api.emailjs.com")) return;
   e.respondWith(
     caches.open(CACHE).then(async (cache) => {
       const cached = await cache.match(e.request);
@@ -22,7 +22,8 @@ self.addEventListener("fetch", (e) => {
         if (res && (res.ok || res.type === "opaque")) cache.put(e.request, res.clone());
         return res;
       }).catch(() => cached);
-      return cached || network;
+      const fresh = /\.(html|js|css)$|\/$/.test(new URL(e.request.url).pathname);
+      return fresh ? network.then((r) => r || cached) : cached || network;
     })
   );
 });

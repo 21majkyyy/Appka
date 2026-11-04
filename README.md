@@ -8,7 +8,8 @@ Dá sa otvoriť v mobile a pridať na plochu („Pridať na plochu“) – potom
 ## Čo appka obsahuje
 - **Domov** – úvodná fotka interiéru, stav „Otvorené/Zatvorené“ podľa času v Trenčíne, promo prvý vstup zadarmo, zóny fitka.
 - **Členstvo** – nákup permanentiek (1 / 3 / 12 mesiacov, študent, senior), balíkov 10 a 20 vstupov, jednorazových vstupov a MultiSport/UpBalansea.
-  Pokladňa s overením údajov a karty (demo platobná brána).
+  Platba cez **Stripe** (karta, Apple Pay, Google Pay) – návod na zapojenie v [NASTAVENIE-PLATIEB.md](NASTAVENIE-PLATIEB.md).
+- **Potvrdzovací e-mail** s QR kódom, súhrnom objednávky a pokynmi ([náhľad](email-nahlad.png)) – odosiela ho server po zaplatení.
 - **Moja karta** – zakúpené permanentky s QR kódom na vstup, platnosť, zostávajúce dni/vstupy, história.
 - **Galéria** – 23 fotiek interiéru s filtrom podľa zón a prehliadačom (swipe).
 - **Info** – otváracie hodiny (zvýraznený dnešok, slovenské sviatky), presná poloha na mape (48.894554, 18.062685), navigácia cez Google Maps / Waze / Apple Mapy, kontakt.
@@ -25,6 +26,6 @@ python3 -m http.server 8000
 Na zverejnenie stačí nahrať priečinok na ľubovoľný statický hosting (GitHub Pages, Netlify…).
 
 ## Čo treba doplniť pre ostrú prevádzku
-- **Platby** – napojiť reálnu bránu (napr. Stripe, GP webpay, Besteron); teraz je platba simulovaná.
-- **Backend** – permanentky sa ukladajú len v telefóne (localStorage). Pre overovanie QR na recepcii je potrebný server/rezervačný systém.
+- **Platby a e-maily** – kód je hotový (`server/`), treba vytvoriť účty Stripe, EmailJS a Cloudflare a vyplniť `apiUrl` v `config.js`. Kým nie je vyplnené, appka beží v demo režime.
+- **Recepcia** – permanentky sa v appke ukladajú v telefóne; na overovanie QR kódov na recepcii je potrebný rezervačný/dochádzkový systém.
 - **Fotky a logo** pochádzajú z webu gymone.sk – pred zverejnením treba súhlas prevádzkovateľa.

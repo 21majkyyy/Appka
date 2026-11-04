@@ -206,10 +206,16 @@
           </div>
         </fieldset>
 
+        <div class="paynote" id="liveNote" hidden>
+          <span class="paynote__lock">🔒</span>
+          <div><strong>Zabezpečená platba cez Stripe</strong><br>Kartou, Apple Pay alebo Google Pay. Údaje o karte nikdy neprechádzajú cez appku GYM ONE.</div>
+        </div>
+
         <label class="check"><input type="checkbox" name="terms" required /> Súhlasím s prevádzkovým poriadkom a VOP</label>
         <p class="form-error" id="coError" role="alert"></p>
         <button class="btn btn--primary btn--block" type="submit" id="coSubmit">Zaplatiť</button>
-        <p class="muted small center">Demo platobná brána – reálna platba sa neuskutoční.</p>
+        <p class="muted small center" id="demoNote">Demo režim – reálna platba sa neuskutoční. Testovacia karta: 4242 4242 4242 4242</p>
+        <p class="muted small center">Potvrdenie s QR kódom ti príde na zadaný e-mail.</p>
       </form>
     </div>
   </div>
@@ -223,10 +229,27 @@
     <p class="lightbox__cap" id="lbCap"></p>
   </div>
 
+  <!-- ========== NÁHĽAD E-MAILU ========== -->
+  <div class="mail" id="mailModal" aria-hidden="true">
+    <div class="mail__backdrop" data-mail-close></div>
+    <div class="mail__panel" role="dialog" aria-modal="true" aria-labelledby="mailSubject">
+      <div class="mail__head">
+        <div class="mail__meta">
+          <p class="mail__from"><span class="mail__avatar">G1</span><span><strong>GYM ONE</strong><br><span class="muted small">komu: <span id="mailTo"></span></span></span></p>
+          <h2 id="mailSubject" class="mail__subject"></h2>
+        </div>
+        <button class="mail__close" data-mail-close aria-label="Zavrieť">✕</button>
+      </div>
+      <p class="mail__note" id="mailNote"></p>
+      <iframe id="mailFrame" title="Potvrdzovací e-mail" class="mail__frame"></iframe>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="app.js"></script>
+  <script src="config.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

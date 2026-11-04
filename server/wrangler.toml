@@ -1,0 +1,12 @@
+name = "gymone-pay"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+[vars]
+APP_URL = "https://21majkyyy.github.io/Appka/"
+REPLY_TO = "info@gymone.sk"
+
+# Tajné kľúče nastav príkazmi (nie sem!):
+#   npx wrangler secret put STRIPE_SECRET_KEY
+#   npx wrangler secret put STRIPE_WEBHOOK_SECRET
+#   npx wrangler secret put EMAILJS_PRIVATE_KEY   (a ďalšie EMAILJS_* / RESEND_API_KEY)
